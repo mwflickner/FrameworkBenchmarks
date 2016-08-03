@@ -3,6 +3,7 @@
 import sys
 import json
 from random import randint
+from functools import partial
 
 import momoko
 import motor
@@ -111,13 +112,44 @@ class MultipleQueriesPostgresRawTestHandler(BaseHandler):
         self.set_header("Content-Type", "application/json; charset=UTF-8")
         self.write(response)
 
+class UpdateTestHandler(BaseHandler):
+    @gen.coroutine
+    def post(self):
+        try:
+            queries = int(self.get_argument("queries")[0])
+        except Exception:
+            queries = 1
+        else:
+            if queries < 1:
+                queries = 1
+            elif queries > 500:
+                queries = 500
+        print(queries)
+        worlds = []
+        rp = partial(randint, 1, 10000)
+        ids = [rp() for _ in xrange(queries)]
+        ids.sort()
+        print(ids)
+        for id in ids:
+            update = yield db.World.update({'_id': id}, {'randomNumber': randint(1,10000)})
+            result = yield db.World.find_one({'_id':id})
+            print(result)
+            result['id'] = int(result.pop('_id'))
+            result['randomNumber'] = int(result['randomNumber'])
+            print(result)
+            worlds.append(result.serialize)
+        response = json.dumps(worlds)
+        self.set_header("Content-Type", "application/json")
+        self.write(response)
+
 application = tornado.web.Application([
     (r"/json", JsonSerializeTestHandler),
     (r"/plaintext", PlaintextHandler),
     (r"/db", DBTestHandler),
     (r"/queries", QueryTestHandler),
     (r"/dbraw", QueryPostgresRawTestHandler),
-    (r"/queriesraw", MultipleQueriesPostgresRawTestHandler)
+    (r"/queriesraw", MultipleQueriesPostgresRawTestHandler),
+    (r"/updates", UpdateTestHandler)
 ])
 
 
